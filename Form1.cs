@@ -13,6 +13,8 @@ using System.Threading.Tasks;
 using System.Windows.Forms;
 using Renci.SshNet;
 using System.IO;
+using System.Collections.Concurrent;
+using System.Xml.Linq;
 
 namespace PiController
 {
@@ -28,18 +30,90 @@ namespace PiController
     {
         void SendMessageToConsole(string message, LogType logType);
     }
-    public partial class frmMain : Form, Icommunicator
+    public interface IController
     {
-        private Serializer.SaveObject sv = new Serializer.SaveObject();
+        void EditDevice(Device device);
+        void AddDevice(Device device);
+        void DeleteDevice(Device device);
+        void AddCommand(Command command);
+        void EditCommand(Command command);
+        void DeleteCommand(Command command);
+    }
+
+    public partial class frmMain : Form, Icommunicator, IController
+    {
+        private SaveObject sv;
         private List<Command> selected_commands = new List<Command>();
-        private List<CheckBox> selected_devices = new List<CheckBox>();
-        private Serializer serializer = new Serializer();
+        private List<Device> selected_devices = new List<Device>();
+        private Serializer serializer;
+        Device CurrentDevice = null;
+        Command currentCommand = null;
 
         public frmMain()
         {
             InitializeComponent();
+            CenterToScreen();
+            sv = new SaveObject();
+            serializer = new Serializer();
+            LoadFromDB();
+            if (sv.Devices.Count > 0)
+                LoadDevices();
+            if (sv.Commands.Count > 0)
+                LoadCommands();
         }
+        private void SaveDB()
+        {
+            serializer.JsonSerialize_(sv);
+        }
+        private void LoadDevices()
+        {
+            foreach (Device device in sv.Devices)
+                flpDevices.Controls.Add(GetDeviceCB(device));
+        }
+        private void LoadCommands()
+        {
+            foreach (Command command in sv.Commands)
+                flpcommands.Controls.Add(GetCommandCB(command));
+        }
+        private void LoadFromDB()
+        {
+            try
+            {
+                string path = serializer.GetDBPath();
+                if (!Directory.Exists(Path.GetDirectoryName(path)))
+                    Directory.CreateDirectory(Path.GetDirectoryName(path));
+                if (!File.Exists(path))
+                    File.Create(path).Close();
 
+                sv = (SaveObject)serializer.JsonDeserialize_(sv.GetType(), path);
+
+                if (sv == null)
+                {
+                    SendMessageToConsole($"Could not read from DB file", LogType.Information);
+                    sv = new SaveObject();
+                    return;
+                }
+                if (sv.Devices == null)
+                {
+                    SendMessageToConsole($"No devices were read from DB", LogType.Information);
+                    sv.Devices = new ConcurrentBag<Device>();
+                    return;
+                }
+                if (sv.Commands == null)
+                {
+                    sv.Commands = new ConcurrentBag<Command>();
+                    SendMessageToConsole($"No commands were read from DB", LogType.Information);
+                    return;
+                }
+                else
+                {
+                    SendMessageToConsole($"Read {sv.Devices.Count} Devices and {sv.Commands.Count} Commands from DB", LogType.Information);
+                }
+
+            }
+            catch (Exception e) { SendMessageToConsole($"{e}", LogType.Error); }
+
+        }
         private void TbAddNewCommand_KeyUp(object sender, KeyEventArgs e)
         {
             //catch enter 
@@ -65,7 +139,7 @@ namespace PiController
                     color = Color.Black;
                     break;
                 case LogType.Information:
-                    color = Color.LightBlue;
+                    color = Color.Blue;
                     break;
             }
             string dtformat = "HH:mm:ss tt:  ";
@@ -82,133 +156,11 @@ namespace PiController
         }
         #endregion ICommunicator
 
-        private void cbShowDevicePassword_CheckedChanged(object sender, EventArgs e)
-        {
-            tbDevicePassword.UseSystemPasswordChar = !cbShowDevicePassword.Checked;
-        }
-
-        private void tbDevicePort_KeyPress(object sender, KeyPressEventArgs e)
-        {
-            if (!char.IsControl(e.KeyChar) && !char.IsDigit(e.KeyChar))
-            {
-                e.Handled = true;
-            }
-            int num;
-            if (!int.TryParse(tbDevicePort.Text, out num))
-                return;
-            if (num <= 0 || num > 65535)
-            {
-                SendMessageToConsole("Invalid Port", LogType.Warning);
-                tbDevicePort.Clear();
-            }
-        }
-
-        private void ClearDevicePnl()
-        {
-            tbDeviceName.Clear();
-            tbDevicePort.Clear();
-            tbDevicePassword.Clear();
-            tbDeviceUserName.Clear();
-            tbDeviceIP.Clear();
-            tbDeviceDescription.Clear();
-            tbDeviceLocation.Clear();
-        }
-        private void cbAddDevice_CheckedChanged(object sender, EventArgs e)
-        {
-            pnlAddNewDevice.Visible = cbAddDevice.Checked;
-            if (!pnlAddNewDevice.Visible)
-                ClearDevicePnl();
-        }
-
-        private void cbAddCommand_CheckedChanged(object sender, EventArgs e)
-        {
-            pnlAddNewCommand.Visible = cbAddCommand.Checked;
-            if (!pnlAddNewCommand.Visible)
-                tbCommand.Clear();//clear command panel
-        }
-
-        private void btnAddDevice_Click(object sender, EventArgs e)
-        {
-            Device device = new Device()
-            {
-                DeviceHostName = tbDeviceName.Text,
-                Description = tbDeviceDescription.Text,
-                UserName = tbDeviceUserName.Text,
-                DeviceLocation = tbDeviceLocation.Text,
-                Port = tbDevicePort.Text,
-                DeviceIP = tbDeviceIP.Text,
-                EncryptionKey = Utils.GenerateEncryptionKey(),
-                DeviceId = Utils.GetUniqueID()
-            };
-            device.Password = Utils.EncryptPassword(tbDevicePassword.Text, device.EncryptionKey);
-
-            CheckBox cb = new CheckBox()
-            {
-                Tag = device,
-                Text = device.DeviceHostName,
-            };
-
-            cb.CheckedChanged += DeviceCheckedChanged;
-            sv.Devices.Add(device);
-            flpCommands.Controls.Add(cb);
-
-            serializer.JsonSerialize_(sv);
-        }
-        private void DeviceCheckedChanged(object sender, EventArgs e)
-        {
-            CheckBox cb = (CheckBox)sender;
-            if (cb == null)
-                return;
-
-            if (cb.Checked)
-                selected_devices.Add(cb);
-            else
-                selected_devices.Remove(cb);
-        }
-        private void tbDeviceName_TextChanged(object sender, EventArgs e)
-        {
-            TextBox tb = sender as TextBox;
-            if (tb == null) return;
-
-            string tbName = tb.Name.ToString();
-            switch (tbName)
-            {
-                case "tbDeviceName":
-                    if (string.IsNullOrEmpty(tbDeviceName.Text))
-                        lblDeviceNameMust.Visible = true;
-                    else
-                        lblDeviceNameMust.Visible = false;
-                    break;
-                case "tbDeviceUserName":
-                    if (string.IsNullOrEmpty(tbDeviceUserName.Text))
-                        lbldeviceUserNameMust.Visible = true;
-                    else
-                        lbldeviceUserNameMust.Visible = false;
-                    break;
-                case "tbDevicePassword":
-                    if (string.IsNullOrEmpty(tbDevicePassword.Text))
-                        lblDevicePasswordMust.Visible = true;
-                    else
-                        lblDevicePasswordMust.Visible = false;
-                    break;
-            }
-            if (!lblDeviceNameMust.Visible && !lbldeviceUserNameMust.Visible && !lblDevicePasswordMust.Visible)
-                btnAddDevice.Enabled = true;
-            else
-                btnAddDevice.Enabled = false;
-        }
-
         private void btnRun_Click(object sender, EventArgs e)
         {
-            foreach (CheckBox c in selected_devices)
+            foreach (Device device in selected_devices)
             {
-                Device device = c.Tag as Device;
-                if (device == null)
-                {
-                    SendMessageToConsole($"Error Casting Device! @BtnStart_Click", LogType.Error);
-                    continue;
-                }
-                var client = new SshClient(device.DeviceHostName, int.Parse(device.Port), device.UserName, Utils.DecryptPassword(device.Password, device.EncryptionKey));
+                var client = new SshClient(device.DeviceHostName, int.Parse(device.Port), device.UserName, device.Password);
                 client.Connect();
                 if (!client.IsConnected)
                 {
@@ -232,6 +184,163 @@ namespace PiController
                 }
                 client.Disconnect();
             }
+        }
+
+        #region IController
+        public void EditDevice(Device device)
+        {
+            throw new NotImplementedException();
+        }
+
+
+        CheckBox GetCB(object obj)
+        {
+            CheckBox cb = new CheckBox()
+            {
+                Tag = obj,
+            };
+            cb.CheckedChanged += Cb_CheckedChanged;
+            cb.MouseEnter += Cb_MouseEnter;
+
+            cb.ForeColor = Color.Black;
+            return cb;
+        }
+
+
+        CheckBox GetCommandCB(Command command)
+        {
+            CheckBox cb = GetCB(command);
+            cb.Name = "CommandCB";
+            cb.Text = command.CommandName;
+            return cb;
+        }
+
+        CheckBox GetDeviceCB(Device device)
+        {
+            CheckBox cb = GetCB(device);
+            cb.Name = "DeviceCB";
+            cb.Text = device.DeviceHostName;
+            return cb;
+        }
+
+        private void Cb_MouseEnter(object sender, EventArgs e)
+        {
+            ToolTip t = new ToolTip();
+            CheckBox cb = sender as CheckBox;
+
+            switch (cb.Name)
+            {
+                case "DeviceCB":
+                    t.SetToolTip(cb, ((Device)(cb.Tag)).Description);
+                    break;
+                case "CommandCB":
+                    t.SetToolTip(cb, ((Command)(cb.Tag)).CommandDescription);
+                    break;
+            }
+        }
+
+        private void Cb_CheckedChanged(object sender, EventArgs e)
+        {
+            CheckBox cb = (CheckBox)sender;
+            if (cb == null)
+                return;
+
+            switch (cb.Name)
+            {
+                case "DeviceCB":
+                    if (cb.Checked)
+                    {
+                        selected_devices.Add((Device)cb.Tag);
+                        CurrentDevice = (Device)cb.Tag;
+                    }
+                    else
+                        selected_devices.Remove((Device)cb.Tag);
+                    break;
+                case "CommandCB":
+                    if (cb.Checked)
+                    {
+                        selected_commands.Add((Command)cb.Tag);
+                        currentCommand = (Command)cb.Tag;
+                    }
+                    else
+                        selected_commands.Remove((Command)cb.Tag);
+                    break;
+            }
+        }
+
+        public void AddDevice(Device device)
+        {
+            sv.Devices.Add(device);
+            serializer.JsonSerialize_(sv);
+            flpDevices.Controls.Add(GetDeviceCB(device));
+        }
+
+        public void DeleteDevice(Device device)
+        {
+            foreach (TextBox tb in flpDevices.Controls)
+            {
+                if (((Device)tb.Tag).Equals(device))
+                {
+                    tb.Dispose();
+                    return;
+                }
+            }
+        }
+
+        public void AddCommand(Command command)
+        {
+            throw new NotImplementedException();
+        }
+
+        public void EditCommand(Command command)
+        {
+            throw new NotImplementedException();
+        }
+
+        public void DeleteCommand(Command command)
+        {
+            throw new NotImplementedException();
+        }
+
+        #endregion IController
+
+        private void btnAddDevice_Click(object sender, EventArgs e)
+        {
+            frmAddDevice addDevicefrm = new frmAddDevice(this, this);
+            addDevicefrm.Show();
+        }
+
+        private void btnRemoveDevice_Click(object sender, EventArgs e)
+        {
+            if (CurrentDevice == null)
+            {
+                SendMessageToConsole("No Device Selected", LogType.Warning);
+                return;
+            }
+
+            foreach (CheckBox tb in flpDevices.Controls)
+            {
+                if (((Device)tb.Tag).Equals(CurrentDevice))
+                {
+                    tb.Dispose();
+                    break;
+                }
+            }
+            sv.Devices.TryTake(out CurrentDevice);
+            CurrentDevice = null;
+            SaveDB();
+        }
+
+        private void btnEditDevice_Click(object sender, EventArgs e)
+        {
+            if (CurrentDevice == null)
+            {
+                SendMessageToConsole("No Device Selected to edit", LogType.Warning);
+                return;
+            }
+
+            frmAddDevice addDevicefrm = new frmAddDevice(this, this, CurrentDevice);
+            addDevicefrm.Show();
         }
     }
 }

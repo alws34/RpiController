@@ -10,3 +10,20 @@ C:\Users\alws3\OneDrive\שולחן העבודה\PiController\obj\Debug\PiControl
 C:\Users\alws3\OneDrive\שולחן העבודה\PiController\obj\Debug\PiController.exe
 C:\Users\alws3\OneDrive\שולחן העבודה\PiController\obj\Debug\PiController.pdb
 C:\Users\alws3\OneDrive\שולחן העבודה\PiController\obj\Debug\PiController.frmMain.resources
+C:\Users\alws3\Desktop\RpiController\bin\Debug\PiController.exe.config
+C:\Users\alws3\Desktop\RpiController\bin\Debug\PiController.exe
+C:\Users\alws3\Desktop\RpiController\bin\Debug\PiController.pdb
+C:\Users\alws3\Desktop\RpiController\bin\Debug\Newtonsoft.Json.dll
+C:\Users\alws3\Desktop\RpiController\bin\Debug\Renci.SshNet.dll
+C:\Users\alws3\Desktop\RpiController\bin\Debug\Newtonsoft.Json.xml
+C:\Users\alws3\Desktop\RpiController\bin\Debug\Renci.SshNet.xml
+C:\Users\alws3\Desktop\RpiController\obj\Debug\PiController.csproj.AssemblyReference.cache
+C:\Users\alws3\Desktop\RpiController\obj\Debug\PiController.csproj.SuggestedBindingRedirects.cache
+C:\Users\alws3\Desktop\RpiController\obj\Debug\PiController.frmMain.resources
+C:\Users\alws3\Desktop\RpiController\obj\Debug\PiController.frmAddDevice.resources
+C:\Users\alws3\Desktop\RpiController\obj\Debug\PiController.Properties.Resources.resources
+C:\Users\alws3\Desktop\RpiController\obj\Debug\PiController.csproj.GenerateResource.cache
+C:\Users\alws3\Desktop\RpiController\obj\Debug\PiController.csproj.CoreCompileInputs.cache
+C:\Users\alws3\Desktop\RpiController\obj\Debug\PiController.csproj.CopyComplete
+C:\Users\alws3\Desktop\RpiController\obj\Debug\PiController.exe
+C:\Users\alws3\Desktop\RpiController\obj\Debug\PiController.pdb

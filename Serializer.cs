@@ -12,15 +12,22 @@ using PiController.Properties;
 
 namespace RPICommander
 {
+    public class SaveObject
+    {
+        public ConcurrentBag<Device> Devices { get; set; }
+        public ConcurrentBag<Command> Commands { get; set; }
+        public SaveObject()
+        {
+            Devices = new ConcurrentBag<Device>();
+            Commands = new ConcurrentBag<Command>();
+        }
+    }
     public class Serializer
     {
-        public class SaveObject
-        {
-            public ConcurrentBag<Device> Devices { get; set; }
-            public ConcurrentBag<Command> Commands { get; set; }
-        }
+
         public Serializer() { }
-        string filepath = $"{Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData)}\\RPI Controller\\RpiController.json";
+
+        string filepath = $"{Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData)}\\RPI_Controller\\RpiController.json";
 
         public void JsonSerialize_(object data, bool toAppend = false)
         {
@@ -29,16 +36,22 @@ namespace RPICommander
             if (File.Exists(filepath))
                 File.Delete(filepath);
 
-
             JsonSerializer jsonSerializer = new JsonSerializer()
             {
                 Formatting = Formatting.Indented,
                 MissingMemberHandling = MissingMemberHandling.Ignore
             };
+            try
+            {
+                using (StreamWriter sw = new StreamWriter(filepath, toAppend))
+                using (JsonTextWriter jsonWriter = new JsonTextWriter(sw))
+                    jsonSerializer.Serialize(jsonWriter, data);
+            }
+            catch (Exception)
+            {
 
-            using (StreamWriter sw = new StreamWriter(filepath, toAppend))
-            using (JsonTextWriter jsonWriter = new JsonTextWriter(sw))
-                jsonSerializer.Serialize(jsonWriter, data);
+                return;
+            }
         }
 
         public object JsonDeserialize_(Type type, string filepath)
@@ -53,13 +66,12 @@ namespace RPICommander
                 MissingMemberHandling = MissingMemberHandling.Ignore,
                 NullValueHandling = NullValueHandling.Ignore
             };
-
-            using (StreamReader sr = new StreamReader(filepath))
-            using (JsonReader jsonReader = new JsonTextReader(sr))
-                obj = jsonSerializer.Deserialize(jsonReader) as JObject;
-
             try
             {
+                using (StreamReader sr = new StreamReader(filepath))
+                using (JsonReader jsonReader = new JsonTextReader(sr))
+                    obj = jsonSerializer.Deserialize(jsonReader) as JObject;
+
                 if (obj == null)
                     return null;
 

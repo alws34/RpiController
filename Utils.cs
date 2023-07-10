@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Renci.SshNet.Security;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -10,6 +11,9 @@ namespace PiController
 {
     public static class Utils
     {
+        private static readonly byte[] Key = Encoding.UTF8.GetBytes("ThisIsASecretKey"); // Replace with your secret key
+        private static readonly byte[] IV = Encoding.UTF8.GetBytes("ThisIsAnIV12345"); // Replace with your IV
+
         public static string GetUniqueID() { return Guid.NewGuid().ToString(); }
 
         public static string GenerateSalt(int length = 512)
@@ -48,62 +52,15 @@ namespace PiController
             }
         }
 
-        public static byte[] EncryptPassword(string password, byte[] key)
-        {
-            using (Aes aes = Aes.Create())
-            {
-                aes.Key = key;
-
-                // Generate a random IV (Initialization Vector)
-                aes.GenerateIV();
-
-                using (MemoryStream memoryStream = new MemoryStream())
-                using (CryptoStream cryptoStream = new CryptoStream(memoryStream, aes.CreateEncryptor(), CryptoStreamMode.Write))
-                {
-                    // Write the IV to the beginning of the encrypted data
-                    memoryStream.Write(aes.IV, 0, aes.IV.Length);
-
-                    // Convert the password to bytes and encrypt it
-                    byte[] passwordBytes = Encoding.UTF8.GetBytes(password);
-                    cryptoStream.Write(passwordBytes, 0, passwordBytes.Length);
-                    cryptoStream.FlushFinalBlock();
-
-                    return memoryStream.ToArray();
-                }
-            }
-        }
-
-        public static byte[] GenerateEncryptionKey()
+        public static string GenerateSalt()
         {
             using (RNGCryptoServiceProvider rng = new RNGCryptoServiceProvider())
             {
-                byte[] key = new byte[32]; // 256 bits
-                rng.GetBytes(key);
-                return key;
+                byte[] salt = new byte[8]; // 64 bits
+                rng.GetBytes(salt);
+                return Convert.ToBase64String(salt);
             }
         }
-
-        public static string DecryptPassword(byte[] encryptedPassword, byte[] key)
-        {
-            using (Aes aes = Aes.Create())
-            {
-                aes.Key = key;
-
-                // Read the IV from the beginning of the encrypted data
-                byte[] iv = new byte[aes.IV.Length];
-                Array.Copy(encryptedPassword, iv, iv.Length);
-                aes.IV = iv;
-
-                using (MemoryStream memoryStream = new MemoryStream(encryptedPassword, iv.Length, encryptedPassword.Length - iv.Length))
-                using (CryptoStream cryptoStream = new CryptoStream(memoryStream, aes.CreateDecryptor(), CryptoStreamMode.Read))
-                using (StreamReader streamReader = new StreamReader(cryptoStream))
-                {
-                    return streamReader.ReadToEnd();
-                }
-            }
-        }
-
-
 
     }
 }
