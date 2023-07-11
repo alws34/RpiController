@@ -141,7 +141,7 @@
             // 
             this.lblDeviceDescription.AutoSize = true;
             this.lblDeviceDescription.Font = new System.Drawing.Font("Arial", 10F, System.Drawing.FontStyle.Bold);
-            this.lblDeviceDescription.Location = new System.Drawing.Point(2, 187);
+            this.lblDeviceDescription.Location = new System.Drawing.Point(5, 189);
             this.lblDeviceDescription.Margin = new System.Windows.Forms.Padding(2, 0, 2, 0);
             this.lblDeviceDescription.Name = "lblDeviceDescription";
             this.lblDeviceDescription.Size = new System.Drawing.Size(88, 16);
@@ -151,18 +151,18 @@
             // tbDeviceDescription
             // 
             this.tbDeviceDescription.Font = new System.Drawing.Font("Arial", 10F, System.Drawing.FontStyle.Bold);
-            this.tbDeviceDescription.Location = new System.Drawing.Point(105, 165);
+            this.tbDeviceDescription.Location = new System.Drawing.Point(105, 167);
             this.tbDeviceDescription.Margin = new System.Windows.Forms.Padding(2);
             this.tbDeviceDescription.Multiline = true;
             this.tbDeviceDescription.Name = "tbDeviceDescription";
-            this.tbDeviceDescription.Size = new System.Drawing.Size(154, 68);
+            this.tbDeviceDescription.Size = new System.Drawing.Size(154, 66);
             this.tbDeviceDescription.TabIndex = 16;
             // 
             // lblDeviceLocation
             // 
             this.lblDeviceLocation.AutoSize = true;
             this.lblDeviceLocation.Font = new System.Drawing.Font("Arial", 10F, System.Drawing.FontStyle.Bold);
-            this.lblDeviceLocation.Location = new System.Drawing.Point(2, 137);
+            this.lblDeviceLocation.Location = new System.Drawing.Point(2, 143);
             this.lblDeviceLocation.Margin = new System.Windows.Forms.Padding(2, 0, 2, 0);
             this.lblDeviceLocation.Name = "lblDeviceLocation";
             this.lblDeviceLocation.Size = new System.Drawing.Size(67, 16);
@@ -172,7 +172,7 @@
             // tbDeviceLocation
             // 
             this.tbDeviceLocation.Font = new System.Drawing.Font("Arial", 10F, System.Drawing.FontStyle.Bold);
-            this.tbDeviceLocation.Location = new System.Drawing.Point(105, 138);
+            this.tbDeviceLocation.Location = new System.Drawing.Point(105, 140);
             this.tbDeviceLocation.Margin = new System.Windows.Forms.Padding(2);
             this.tbDeviceLocation.Name = "tbDeviceLocation";
             this.tbDeviceLocation.Size = new System.Drawing.Size(154, 23);
@@ -195,7 +195,7 @@
             // 
             this.lblDeviceIP.AutoSize = true;
             this.lblDeviceIP.Font = new System.Drawing.Font("Arial", 10F, System.Drawing.FontStyle.Bold);
-            this.lblDeviceIP.Location = new System.Drawing.Point(2, 110);
+            this.lblDeviceIP.Location = new System.Drawing.Point(2, 116);
             this.lblDeviceIP.Margin = new System.Windows.Forms.Padding(2, 0, 2, 0);
             this.lblDeviceIP.Name = "lblDeviceIP";
             this.lblDeviceIP.Size = new System.Drawing.Size(20, 16);
@@ -205,7 +205,7 @@
             // tbDeviceIP
             // 
             this.tbDeviceIP.Font = new System.Drawing.Font("Arial", 10F, System.Drawing.FontStyle.Bold);
-            this.tbDeviceIP.Location = new System.Drawing.Point(105, 111);
+            this.tbDeviceIP.Location = new System.Drawing.Point(105, 113);
             this.tbDeviceIP.Margin = new System.Windows.Forms.Padding(2);
             this.tbDeviceIP.Name = "tbDeviceIP";
             this.tbDeviceIP.Size = new System.Drawing.Size(154, 23);
@@ -215,7 +215,7 @@
             // 
             this.lblDevicePort.AutoSize = true;
             this.lblDevicePort.Font = new System.Drawing.Font("Arial", 10F, System.Drawing.FontStyle.Bold);
-            this.lblDevicePort.Location = new System.Drawing.Point(2, 85);
+            this.lblDevicePort.Location = new System.Drawing.Point(2, 89);
             this.lblDevicePort.Margin = new System.Windows.Forms.Padding(2, 0, 2, 0);
             this.lblDevicePort.Name = "lblDevicePort";
             this.lblDevicePort.Size = new System.Drawing.Size(36, 16);
@@ -302,7 +302,7 @@
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.BackColor = System.Drawing.Color.DeepSkyBlue;
-            this.ClientSize = new System.Drawing.Size(370, 252);
+            this.ClientSize = new System.Drawing.Size(370, 249);
             this.Controls.Add(this.pnlAddNewDevice);
             this.Name = "frmAddDevice";
             this.Text = "Add Device";

@@ -49,7 +49,6 @@ namespace RPICommander
             }
             catch (Exception)
             {
-
                 return;
             }
         }

@@ -17,16 +17,26 @@ namespace PiController
 
         private Icommunicator communicator;
         private IController controller;
-
+        private bool IsEdit = false;
+        private Device Device_ = null;
         public frmAddDevice(Icommunicator comm, IController con)
         {
             Init(comm, con);
         }
 
-        public frmAddDevice(Icommunicator comm, IController con, Device device)
+        public frmAddDevice(Icommunicator comm, IController con, Device device = null, bool isEdit = false)
         {
             Init(comm, con);
             SetDeviceView(device);
+            IsEdit = isEdit;
+
+            if (isEdit)
+            {
+                btnAddDevice.Text = "Save Changes";
+                Text = "Edit Device";
+
+            }
+            Device_ = device;
         }
 
         private void Init(Icommunicator comm, IController con)
@@ -51,26 +61,56 @@ namespace PiController
 
         public void SetName(string text) { Text = text; }
 
-        public Device GetDevice()
+        public Device GetDevice(Device dev = null)
         {
-            Device device = new Device()
+            Device device;
+            string port = tbDevicePort.Text;
+            if (string.IsNullOrEmpty(tbDevicePort.Text))
+                port = "22";
+
+            if (!IsEdit)
             {
-                DeviceId = Utils.GetUniqueID(),
-                DeviceHostName = tbDeviceName.Text,
-                Password =tbDevicePassword.Text,
-                UserName = tbDeviceUserName.Text,
-                DeviceIP = tbDeviceIP.Text,
-                DeviceLocation = tbDeviceLocation.Text,
-                Description = tbDeviceDescription.Text,
-                Port = tbDevicePort.Text
-            };
-            return device;
+                device = new Device()
+                {
+                    DeviceId = Utils.GetUniqueID(),
+                    DeviceHostName = tbDeviceName.Text,
+                    Password = tbDevicePassword.Text,
+                    UserName = tbDeviceUserName.Text,
+                    DeviceIP = tbDeviceIP.Text,
+                    DeviceLocation = tbDeviceLocation.Text,
+                    Description = tbDeviceDescription.Text,
+                    Port = port
+                };
+                device.EncryptionKey = Utils.GenerateKey();
+                device.EncryptionKey = Utils.GenerateKey();
+                device.Password = Convert.ToString(Utils.EncryptPassword(tbDevicePassword.Text, device.EncryptionKey));
+
+                return device;
+            }
+            else
+            {
+                dev.DeviceHostName = tbDeviceName.Text;
+                dev.Password = tbDevicePassword.Text;
+                dev.UserName = tbDeviceUserName.Text;
+                dev.DeviceIP = tbDeviceIP.Text;
+                dev.DeviceLocation = tbDeviceLocation.Text;
+                dev.Description = tbDeviceDescription.Text;
+                dev.Port = port;
+                return dev;
+            }
         }
 
         private void btnAddDevice_Click(object sender, EventArgs e)
         {
-            controller.AddDevice(GetDevice());
-            communicator.SendMessageToConsole($"Successfully added {GetDevice().DeviceHostName} to DB", LogType.Success);
+            Device dev;
+            if (!IsEdit)
+                dev = GetDevice();
+            else
+                dev = GetDevice(dev: Device_);
+
+            controller.AddDevice(dev);
+            communicator.SendMessageToConsole($"Successfully added {dev.DeviceHostName}", LogType.Success);
+
             Dispose();
         }
 
@@ -126,17 +166,6 @@ namespace PiController
                 btnAddDevice.Enabled = true;
             else
                 btnAddDevice.Enabled = false;
-        }
-
-        private void ClearDevicePnl()
-        {
-            tbDeviceName.Clear();
-            tbDevicePort.Clear();
-            tbDevicePassword.Clear();
-            tbDeviceUserName.Clear();
-            tbDeviceIP.Clear();
-            tbDeviceDescription.Clear();
-            tbDeviceLocation.Clear();
         }
 
         private void btnRemoveDevice_Click(object sender, EventArgs e)

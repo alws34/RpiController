@@ -120,6 +120,19 @@ namespace PiController
             //add new command
         }
 
+        private void ReloadDevices()
+        {
+            LoadFromDB();
+            flpDevices.Controls.Clear();
+            LoadDevices();
+        }
+        private void ReloadCommands()
+        {
+            LoadFromDB();
+            flpcommands.Controls.Clear();
+            LoadCommands();
+        }
+
         #region ICommunicator
         public void SendMessageToConsole(string message, LogType logType)
         {
@@ -142,13 +155,13 @@ namespace PiController
                     color = Color.Blue;
                     break;
             }
-            string dtformat = "HH:mm:ss tt:  ";
+            string dtformat = "HH:mm:ss tt ";
             Action action = () =>
             {
                 rtbConsole.SelectionStart = rtbConsole.TextLength;
                 rtbConsole.SelectionLength = 0;
                 rtbConsole.SelectionColor = color;
-                rtbConsole.AppendText($"{DateTime.Now.ToString(dtformat)}{message}{Environment.NewLine}");
+                rtbConsole.AppendText($"{DateTime.Now.ToString(dtformat)}:{message}{Environment.NewLine}");
                 rtbConsole.SelectionColor = rtbConsole.ForeColor;
             };
 
@@ -156,42 +169,71 @@ namespace PiController
         }
         #endregion ICommunicator
 
-        private void btnRun_Click(object sender, EventArgs e)
-        {
-            foreach (Device device in selected_devices)
-            {
-                var client = new SshClient(device.DeviceHostName, int.Parse(device.Port), device.UserName, device.Password);
-                client.Connect();
-                if (!client.IsConnected)
-                {
-                    SendMessageToConsole($"couldn't connect to client {device.DeviceHostName} over port {device.Port}\n", LogType.Error);
-                    continue;
-                }
-                SendMessageToConsole($"\r\nconnected to client {device.DeviceHostName} over port {device.Port}\n", LogType.Success);
-                foreach (Command command in selected_commands)
-                {
-                    SshCommand cmd = client.CreateCommand(command.CommandDescription);
-                    string result = cmd.Execute();
-                    StreamReader reader = new StreamReader(cmd.ExtendedOutputStream);
-                    string stderr = reader.ReadToEnd();
-
-                    SendMessageToConsole($"\r\n\tExecuted command ''{command.CommandName}'' on {device.DeviceHostName}\r", LogType.Information);
-
-                    if (!string.IsNullOrWhiteSpace(result))
-                        SendMessageToConsole($"Command output: {result}", LogType.Information);
-                    if (!string.IsNullOrWhiteSpace(stderr))
-                        SendMessageToConsole($"\t{stderr}\n", LogType.Error);
-                }
-                client.Disconnect();
-            }
-        }
-
         #region IController
         public void EditDevice(Device device)
         {
-            throw new NotImplementedException();
+            Device oldDevice = sv.Devices.FirstOrDefault(dev => dev.DeviceId == device.DeviceId);
+            if (oldDevice != null)
+            {
+                sv.Devices.TryTake(out oldDevice);
+                sv.Devices.Add(device);
+            }
+            SaveDB();
+            ReloadDevices();
         }
 
+        public void AddDevice(Device device)
+        {
+            sv.Devices.Add(device);
+            SaveDB();
+            flpDevices.Controls.Add(GetDeviceCB(device));
+        }
+
+        public void DeleteDevice(Device device)
+        {
+            foreach (TextBox tb in flpDevices.Controls)
+            {
+                if (((Device)tb.Tag).Equals(device))
+                {
+                    tb.Dispose();
+                    return;
+                }
+            }
+        }
+
+        public void AddCommand(Command command)
+        {
+            sv.Commands.Add(command);
+            SaveDB();
+            flpcommands.Controls.Add(GetCommandCB(command));
+            ReloadCommands();
+        }
+
+        public void EditCommand(Command command)
+        {
+            Command oldCommand = sv.Commands.FirstOrDefault(com => com.CommandID == command.CommandID);
+            if (oldCommand != null)
+            {
+                sv.Commands.TryTake(out oldCommand);
+                sv.Commands.Add(command);
+            }
+            SaveDB();
+            ReloadCommands();
+        }
+
+        public void DeleteCommand(Command command)
+        {
+            foreach (TextBox tb in flpcommands.Controls)
+            {
+                if (((Command)tb.Tag).Equals(command))
+                {
+                    tb.Dispose();
+                    return;
+                }
+            }
+        }
+
+        #endregion IController
 
         CheckBox GetCB(object obj)
         {
@@ -205,7 +247,6 @@ namespace PiController
             cb.ForeColor = Color.Black;
             return cb;
         }
-
 
         CheckBox GetCommandCB(Command command)
         {
@@ -254,7 +295,10 @@ namespace PiController
                         CurrentDevice = (Device)cb.Tag;
                     }
                     else
+                    {
                         selected_devices.Remove((Device)cb.Tag);
+                        CurrentDevice = null;
+                    }
                     break;
                 case "CommandCB":
                     if (cb.Checked)
@@ -263,47 +307,82 @@ namespace PiController
                         currentCommand = (Command)cb.Tag;
                     }
                     else
+                    {
                         selected_commands.Remove((Command)cb.Tag);
+                        currentCommand = null;
+                    }
                     break;
             }
         }
 
-        public void AddDevice(Device device)
+        private void btnRun_Click(object sender, EventArgs e)
         {
-            sv.Devices.Add(device);
-            serializer.JsonSerialize_(sv);
-            flpDevices.Controls.Add(GetDeviceCB(device));
+
+            Thread runCommands = new Thread(RunCommands);
+            runCommands.Start();
         }
 
-        public void DeleteDevice(Device device)
+        private void RunCommands()
         {
-            foreach (TextBox tb in flpDevices.Controls)
+            foreach (Device device in selected_devices)
             {
-                if (((Device)tb.Tag).Equals(device))
+                string password = Utils.DecryptPassword(device.Password, device.EncryptionKey);
+                var client = new SshClient(device.DeviceHostName, int.Parse(device.Port), device.UserName, password);
+                client.Connect();
+                if (!client.IsConnected)
                 {
-                    tb.Dispose();
-                    return;
+                    SendMessageToConsole($"couldn't connect to client {device.DeviceHostName} over port {device.Port}\n", LogType.Error);
+                    continue;
                 }
+                SendMessageToConsole($"\r\nconnected to client {device.DeviceHostName} over port {device.Port}\n", LogType.Success);
+                pnlMain.Enabled = false;
+                foreach (Command command in selected_commands)
+                {
+                    try
+                    {
+                        SshCommand cmd = client.CreateCommand(command.ShellCommand);
+
+                        // Start asynchronous execution of the command
+                        IAsyncResult result = cmd.BeginExecute();
+
+                        // Create async readers for output and error streams
+                        StreamReader outputReader = new StreamReader(cmd.OutputStream);
+                        StreamReader errorReader = new StreamReader(cmd.ExtendedOutputStream);
+
+                        // Read output and error streams asynchronously
+                        while (!result.IsCompleted || !outputReader.EndOfStream || !errorReader.EndOfStream)
+                        {
+                            if (!outputReader.EndOfStream)
+                            {
+                                string output = outputReader.ReadLine();
+                                if (!string.IsNullOrEmpty(output))
+                                    SendMessageToConsole(output, LogType.Normal);
+                            }
+                            if (!errorReader.EndOfStream)
+                            {
+                                string error = errorReader.ReadLine();
+                                if (!string.IsNullOrEmpty(error))
+                                    SendMessageToConsole(error, LogType.Error);
+                            }
+                        }
+                        // Wait for command execution to complete
+                        cmd.EndExecute(result);
+
+                        SendMessageToConsole($"\r\n\tExecuted command \"{command.CommandName}\" Successfully on {device.DeviceHostName}", LogType.Success);
+                    }
+                    catch (Exception ex)
+                    {
+                        SendMessageToConsole($"Error while running Command \"{command.CommandName}\" on {device.DeviceHostName}\n\t{ex}", LogType.Error);
+                        continue;
+                    }
+
+                }
+                pnlMain.Enabled = true;
+                client.Disconnect();
             }
         }
 
-        public void AddCommand(Command command)
-        {
-            throw new NotImplementedException();
-        }
-
-        public void EditCommand(Command command)
-        {
-            throw new NotImplementedException();
-        }
-
-        public void DeleteCommand(Command command)
-        {
-            throw new NotImplementedException();
-        }
-
-        #endregion IController
-
+        #region DevicesButtons
         private void btnAddDevice_Click(object sender, EventArgs e)
         {
             frmAddDevice addDevicefrm = new frmAddDevice(this, this);
@@ -341,6 +420,46 @@ namespace PiController
 
             frmAddDevice addDevicefrm = new frmAddDevice(this, this, CurrentDevice);
             addDevicefrm.Show();
+        }
+        #endregion DevicesButtons
+
+        private void btnAddNewCommand_Click(object sender, EventArgs e)
+        {
+            frmAddCommand AddCommandfrm = new frmAddCommand(this, this);
+            AddCommandfrm.Show();
+        }
+
+        private void btnRemoveCommand_Click(object sender, EventArgs e)
+        {
+            if (currentCommand == null)
+            {
+                SendMessageToConsole("No Device Selected", LogType.Warning);
+                return;
+            }
+
+            foreach (CheckBox tb in flpcommands.Controls)
+            {
+                if (((Command)tb.Tag).Equals(currentCommand))
+                {
+                    tb.Dispose();
+                    break;
+                }
+            }
+            sv.Commands.TryTake(out currentCommand);
+            currentCommand = null;
+            SaveDB();
+        }
+
+        private void btnEditCommand_Click(object sender, EventArgs e)
+        {
+            if (currentCommand == null)
+            {
+                SendMessageToConsole("No Command Selected to edit", LogType.Warning);
+                return;
+            }
+
+            frmAddCommand AddCommandfrm = new frmAddCommand(this, this, currentCommand, true);
+            AddCommandfrm.Show();
         }
     }
 }

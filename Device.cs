@@ -16,16 +16,15 @@ namespace PiController
         public string Description { get; set; }
         public string DeviceLocation { get; set; }
         public string Port { get; set; }
-        public string SaltedPasswordHash { get; set; }
-        public string Salt { get; set; }
+        public string EncryptionKey { get; internal set; }
 
         public Device()
         {
             DeviceId = Utils.GetUniqueID();
-            Salt = Utils.GenerateSalt();
+            EncryptionKey = Utils.GenerateKey();
         }
 
-        public Device(string deviceHostName, string userName, string deviceId, string deviceIP, string description, string deviceLocation, string port, string saltedpass, string encryptionKey)
+        public Device(string deviceHostName, string userName, string deviceId, string deviceIP, string description, string deviceLocation, string port, string encryptionKey)
         {
             DeviceHostName = deviceHostName;
             UserName = userName;
@@ -34,7 +33,7 @@ namespace PiController
             Description = description;
             DeviceLocation = deviceLocation;
             Port = port;
-            SaltedPasswordHash = saltedpass;
+            EncryptionKey = encryptionKey;
         }
     }
 }

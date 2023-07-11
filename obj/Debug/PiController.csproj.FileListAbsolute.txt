@@ -27,3 +27,4 @@ C:\Users\alws3\Desktop\RpiController\obj\Debug\PiController.csproj.CoreCompileIn
 C:\Users\alws3\Desktop\RpiController\obj\Debug\PiController.csproj.CopyComplete
 C:\Users\alws3\Desktop\RpiController\obj\Debug\PiController.exe
 C:\Users\alws3\Desktop\RpiController\obj\Debug\PiController.pdb
+C:\Users\alws3\Desktop\RpiController\obj\Debug\PiController.frmAddCommand.resources
