@@ -329,7 +329,6 @@ namespace PiController
             await RunCommandsAsync();
         }
 
-        // Helper method to execute the SSH command asynchronously and return a Task
         private Task ExecuteCommandAsync(SshClient client, SshCommand cmd)
         {
             return Task.Run(() =>
@@ -342,6 +341,46 @@ namespace PiController
 
                 cmd.Execute();
             });
+        }
+
+        private SshClient ConnectToDevice(Device device, string password)
+        {
+            var sshClient = new SshClient(device.DeviceHostName, int.Parse(device.Port), device.UserName, password);
+
+            try
+            {
+                sshClient.Connect();
+            }
+            catch (Exception e)
+            {
+                if (!string.IsNullOrEmpty(device.DeviceIP))
+                {
+                    SendMessageToConsole($"Couldn't connect to client {device.DeviceHostName}. Retrying using the given IP: {device.DeviceIP}", LogType.Error);
+                    sshClient = ConnectToDeviceWithIP(device, password);
+                }
+                else
+                {
+                    SendMessageToConsole($"Couldn't connect to client {device.DeviceHostName} and no IP to fall back to", LogType.Error);
+                }
+            }
+
+            return sshClient;
+        }
+
+        private SshClient ConnectToDeviceWithIP(Device device, string password)
+        {
+            var sshClient = new SshClient(device.DeviceIP, int.Parse(device.Port), device.UserName, password);
+
+            try
+            {
+                sshClient.Connect();
+            }
+            catch (Exception ex)
+            {
+                SendMessageToConsole($"Couldn't connect to client {device.DeviceHostName} using IP: {device.DeviceIP}", LogType.Error);
+            }
+
+            return sshClient;
         }
 
         private async Task RunCommandsAsync()
@@ -363,18 +402,17 @@ namespace PiController
                     continue;
                 }
 
-                var client = new SshClient(device.DeviceHostName, int.Parse(device.Port), device.UserName, password);
-                client.Connect();
-                
-                Thread.Sleep(1000);//wait a little
+                var client = ConnectToDevice(device, password);
+
+                Thread.Sleep(500);//wait a little
 
                 if (!client.IsConnected)
                 {
-                    SendMessageToConsole($"couldn't connect to client {device.DeviceHostName} over port {device.Port}\n", LogType.Error);
+                    SendMessageToConsole($"couldn't connect to client {device.DeviceHostName} over port {device.Port}", LogType.Error);
                     continue;
                 }
 
-                SendMessageToConsole($"\r\nconnected to client {device.DeviceHostName} successfully over port {device.Port}\n", LogType.Success);
+                SendMessageToConsole($"connected to client {device.DeviceHostName} successfully over port {device.Port}", LogType.Success);
 
                 foreach (Command command in selected_commands)
                 {
@@ -385,6 +423,8 @@ namespace PiController
                         // Execute the command asynchronously
                         Task executionTask = ExecuteCommandAsync(client, cmd);
 
+                        while ( cmd.OutputStream == null || cmd.ExtendedOutputStream == null) { Thread.Sleep(1); }
+
                         // Create async readers for output and error streams
                         StreamReader outputReader = new StreamReader(cmd.OutputStream);
                         StreamReader errorReader = new StreamReader(cmd.ExtendedOutputStream);
@@ -394,12 +434,16 @@ namespace PiController
                         {
                             while (!executionTask.IsCompleted || !outputReader.EndOfStream)
                             {
-                                if (!outputReader.EndOfStream)
+                                try
                                 {
-                                    string output = outputReader.ReadLine();
-                                    if (!string.IsNullOrEmpty(output))
-                                        await SendMessageToConsoleAsync(output, LogType.Normal);
+                                    if (!outputReader.EndOfStream)
+                                    {
+                                        string output = outputReader.ReadLine();
+                                        if (!string.IsNullOrEmpty(output))
+                                            await SendMessageToConsoleAsync(output, LogType.Normal);
+                                    }
                                 }
+                                catch (Exception ex) { continue; }
                             }
                         });
 
@@ -407,15 +451,18 @@ namespace PiController
                         {
                             while (!executionTask.IsCompleted || !errorReader.EndOfStream)
                             {
-                                if (!errorReader.EndOfStream)
+                                try
                                 {
-                                    string error = errorReader.ReadLine();
-                                    if (!string.IsNullOrEmpty(error))
-                                        await SendMessageToConsoleAsync(error, LogType.Error);
+                                    if (!errorReader.EndOfStream)
+                                    {
+                                        string error = errorReader.ReadLine();
+                                        if (!string.IsNullOrEmpty(error))
+                                            await SendMessageToConsoleAsync(error, LogType.Error);
+                                    }
                                 }
+                                catch (Exception ex) { continue; }
                             }
                         });
-
                         // Wait for command execution to complete and the output/error tasks to finish
                         await executionTask;
                         await Task.WhenAll(outputTask, errorTask);
@@ -475,7 +522,7 @@ namespace PiController
                 return;
             }
 
-            frmAddDevice addDevicefrm = new frmAddDevice(this, this, CurrentDevice);
+            frmAddDevice addDevicefrm = new frmAddDevice(this, this, CurrentDevice, true);
             addDevicefrm.Show();
         }
         #endregion DevicesButtons

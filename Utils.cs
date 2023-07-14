@@ -88,17 +88,21 @@ namespace PiController
                 // Initialize the AesManaged object with the key and salt.
                 aes.Key = key;
                 aes.IV = salt;
+                try
+                {
+                    // Decrypt the password.
+                    byte[] encryptedBytes = Convert.FromBase64String(encryptedPassword);
+                    MemoryStream ms = new MemoryStream(encryptedBytes);
+                    CryptoStream cs = new CryptoStream(ms, aes.CreateDecryptor(), CryptoStreamMode.Read);
+                    byte[] decryptedBytes = new byte[ms.Length];
+                    cs.Read(decryptedBytes, 0, decryptedBytes.Length);
+                    cs.Close();
 
-                // Decrypt the password.
-                byte[] encryptedBytes = Convert.FromBase64String(encryptedPassword);
-                MemoryStream ms = new MemoryStream(encryptedBytes);
-                CryptoStream cs = new CryptoStream(ms, aes.CreateDecryptor(), CryptoStreamMode.Read);
-                byte[] decryptedBytes = new byte[ms.Length];
-                cs.Read(decryptedBytes, 0, decryptedBytes.Length);
-                cs.Close();
+                    // Return the decrypted password as a string.
+                    password = Encoding.UTF8.GetString(decryptedBytes).Trim('\0');
+                }
+                catch (Exception ex) { return null; }
 
-                // Return the decrypted password as a string.
-                password = Encoding.UTF8.GetString(decryptedBytes).Trim('\0');
             }
             return password;
         }

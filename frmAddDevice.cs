@@ -18,6 +18,7 @@ namespace PiController
         private Icommunicator communicator;
         private IController controller;
         private bool IsEdit = false;
+        private bool didPasswordEdited = false;
         private Device Device_ = null;
         public frmAddDevice(Icommunicator comm, IController con)
         {
@@ -56,7 +57,7 @@ namespace PiController
             tbDeviceIP.Text = device.DeviceIP;
             tbDevicePort.Text = device.Port;
             tbDeviceLocation.Text = device.DeviceLocation;
-            tbDevicePassword.Text = device.Password;
+            tbDevicePassword.Text = Utils.DecryptPassword(device.Password, device.EncryptionKey, device.Salt);
         }
 
         public void SetName(string text) { Text = text; }
@@ -72,7 +73,6 @@ namespace PiController
             {
                 device = new Device()
                 {
-                    DeviceId = Utils.GetUniqueID(),
                     DeviceHostName = tbDeviceName.Text,
                     Password = tbDevicePassword.Text,
                     UserName = tbDeviceUserName.Text,
@@ -81,16 +81,23 @@ namespace PiController
                     Description = tbDeviceDescription.Text,
                     Port = port
                 };
-                device.EncryptionKey = Utils.GenerateKey();
-                device.EncryptionKey = Utils.GenerateKey();
                 device.Password = Convert.ToString(Utils.EncryptPassword(tbDevicePassword.Text, device.EncryptionKey, device.Salt));
 
                 return device;
             }
             else
             {
+                if (didPasswordEdited)
+                {
+                    //Re encrypt new password
+                    dev.EncryptionKey = Utils.GenerateKey();
+                    dev.Salt = Utils.GenerateSalt();
+                    dev.Password = Utils.EncryptPassword(tbDevicePassword.Text, dev.EncryptionKey, dev.Salt);
+                }
+                else
+                    dev.Password = tbDevicePassword.Text;
+
                 dev.DeviceHostName = tbDeviceName.Text;
-                dev.Password = tbDevicePassword.Text;
                 dev.UserName = tbDeviceUserName.Text;
                 dev.DeviceIP = tbDeviceIP.Text;
                 dev.DeviceLocation = tbDeviceLocation.Text;
@@ -104,13 +111,17 @@ namespace PiController
         {
             Device dev;
             if (!IsEdit)
+            {
                 dev = GetDevice();
+                controller.AddDevice(dev);
+                communicator.SendMessageToConsole($"Successfully Added new device: {dev.DeviceHostName}", LogType.Success);
+            }
             else
+            {
                 dev = GetDevice(dev: Device_);
-
-            controller.AddDevice(dev);
-            communicator.SendMessageToConsole($"Successfully added {dev.DeviceHostName}", LogType.Success);
-
+                controller.EditDevice(dev);
+                communicator.SendMessageToConsole($"Successfully Edited: {dev.DeviceHostName}", LogType.Success);
+            }
             Dispose();
         }
 
@@ -160,6 +171,8 @@ namespace PiController
                         lblDevicePasswordMust.Visible = true;
                     else
                         lblDevicePasswordMust.Visible = false;
+
+                    didPasswordEdited = true;
                     break;
             }
             if (!lblDeviceNameMust.Visible && !lbldeviceUserNameMust.Visible && !lblDevicePasswordMust.Visible)
