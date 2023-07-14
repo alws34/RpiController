@@ -11,30 +11,20 @@ namespace PiController
 {
     public static class Utils
     {
-        private static readonly string Key = "b14ca5898a4e4133bbce2ea2315a1916"; // Replace with your secret key
-        private static readonly byte[] IV = Encoding.UTF8.GetBytes("ThisIsAnIV12345"); // Replace with your IV
-
         public static string GetUniqueID() { return Guid.NewGuid().ToString(); }
 
-        public static string GenerateSalt(int length = 512)
+        public static byte[] GenerateSalt()
         {
-            const string chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()_-+={}[]'|.><,?/;";
-            StringBuilder saltBuilder = new StringBuilder();
+            // Create a new RNGCryptoServiceProvider object.
+            RNGCryptoServiceProvider rng = new RNGCryptoServiceProvider();
 
-            using (RNGCryptoServiceProvider rng = new RNGCryptoServiceProvider())
-            {
-                byte[] saltBytes = new byte[length];
-                rng.GetBytes(saltBytes);
+            // Generate a random salt of 16 bytes.
+            byte[] salt = new byte[16];
+            rng.GetBytes(salt);
 
-                foreach (byte b in saltBytes)
-                {
-                    saltBuilder.Append(chars[b % chars.Length]);
-                }
-            }
-
-            return saltBuilder.ToString();
+            // Return the salt.
+            return salt;
         }
-
         public static string GetSHA512Hash(string input)
         {
             using (SHA512 sha512 = SHA512.Create())
@@ -52,79 +42,65 @@ namespace PiController
             }
         }
 
-        public static string GenerateKey()
+        public static byte[] GenerateKey()
         {
-            using (var aes = Aes.Create())
+            // Create a new RNGCryptoServiceProvider object.
+            RNGCryptoServiceProvider rng = new RNGCryptoServiceProvider();
+
+            // Generate a random key of 128 bits.
+            byte[] key = new byte[16];
+            rng.GetBytes(key);
+
+            // Return the key.
+            return key;
+        }
+
+        public static string EncryptPassword(string password, byte[] key, byte[] salt)
+        {
+            // Create an AesManaged object.
+            using (AesManaged aes = new AesManaged())
             {
-                aes.KeySize = 128; // Set the key size to 128 bits (16 bytes)
-                aes.GenerateKey();
-                return Convert.ToBase64String(aes.Key);
+                // Initialize the AesManaged object with the key and salt.
+                aes.Key = key;
+                aes.IV = salt;
+
+                // Encrypt the password.
+                MemoryStream ms = new MemoryStream();
+                CryptoStream cs = new CryptoStream(ms, aes.CreateEncryptor(), CryptoStreamMode.Write);
+                cs.Write(Encoding.UTF8.GetBytes(password), 0, password.Length);
+                cs.Close();
+
+                // Convert the encrypted password to a Base-64 string.
+                byte[] encryptedBytes = ms.ToArray();
+                string encryptedPassword = Convert.ToBase64String(encryptedBytes);
+
+                // Return the encrypted password.
+                return encryptedPassword;
             }
         }
 
-        public static string EncryptPassword(string password, string key)
+        public static string DecryptPassword(string encryptedPassword, byte[] key, byte[] salt)
         {
-            byte[] iv = new byte[16];
-            byte[] array;
-
-            using (Aes aes = Aes.Create())
+            string password = null;
+            // Create an AesManaged object.
+            using (AesManaged aes = new AesManaged())
             {
-                aes.Key = DeriveKeyBytes(key);
-                aes.IV = iv;
-                aes.Padding = PaddingMode.PKCS7;
+                // Initialize the AesManaged object with the key and salt.
+                aes.Key = key;
+                aes.IV = salt;
 
-                ICryptoTransform encryptor = aes.CreateEncryptor();
+                // Decrypt the password.
+                byte[] encryptedBytes = Convert.FromBase64String(encryptedPassword);
+                MemoryStream ms = new MemoryStream(encryptedBytes);
+                CryptoStream cs = new CryptoStream(ms, aes.CreateDecryptor(), CryptoStreamMode.Read);
+                byte[] decryptedBytes = new byte[ms.Length];
+                cs.Read(decryptedBytes, 0, decryptedBytes.Length);
+                cs.Close();
 
-                using (MemoryStream memoryStream = new MemoryStream())
-                {
-                    using (CryptoStream cryptoStream = new CryptoStream(memoryStream, encryptor, CryptoStreamMode.Write))
-                    {
-                        using (StreamWriter streamWriter = new StreamWriter(cryptoStream))
-                        {
-                            streamWriter.Write(password);
-                        }
-                        array = memoryStream.ToArray();
-                    }
-                }
+                // Return the decrypted password as a string.
+                password = Encoding.UTF8.GetString(decryptedBytes).Trim('\0');
             }
-
-            return Convert.ToBase64String(array);
+            return password;
         }
-
-        public static string DecryptPassword(string encryptedPassword, string key)
-        {
-            byte[] iv = new byte[16];
-            byte[] buffer = Convert.FromBase64String(encryptedPassword);
-
-            using (Aes aes = Aes.Create())
-            {
-                aes.Key = DeriveKeyBytes(key);
-                aes.IV = iv;
-                aes.Padding = PaddingMode.PKCS7;
-
-                ICryptoTransform decryptor = aes.CreateDecryptor();
-
-                using (MemoryStream memoryStream = new MemoryStream(buffer))
-                {
-                    using (CryptoStream cryptoStream = new CryptoStream(memoryStream, decryptor, CryptoStreamMode.Read))
-                    {
-                        using (StreamReader streamReader = new StreamReader(cryptoStream))
-                        {
-                            return streamReader.ReadToEnd();
-                        }
-                    }
-                }
-            }
-        }
-
-        private static byte[] DeriveKeyBytes(string key)
-        {
-            using (SHA256 sha256 = SHA256.Create())
-            {
-                byte[] keyBytes = Encoding.UTF8.GetBytes(key);
-                return sha256.ComputeHash(keyBytes);
-            }
-        }
-
     }
 }

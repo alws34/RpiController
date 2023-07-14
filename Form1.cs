@@ -324,18 +324,35 @@ namespace PiController
 
         private void RunCommands()
         {
+
+            Action a = () =>
+            {
+                pnlMain.Enabled = false;
+                Cursor.Current = Cursors.WaitCursor;
+            };
+            INVOKER.InvokeControl(pnlMain, a);
+
             foreach (Device device in selected_devices)
             {
-                string password = Utils.DecryptPassword(device.Password, device.EncryptionKey);
+                string password = Utils.DecryptPassword(device.Password, device.EncryptionKey, device.Salt);
+
+                if (password == null)
+                {
+                    SendMessageToConsole($"couldn't Decrypt {device.DeviceHostName}'s Password and cannot continue with this device!\n", LogType.Error);
+                    continue;
+                }
+
                 var client = new SshClient(device.DeviceHostName, int.Parse(device.Port), device.UserName, password);
                 client.Connect();
+
                 if (!client.IsConnected)
                 {
                     SendMessageToConsole($"couldn't connect to client {device.DeviceHostName} over port {device.Port}\n", LogType.Error);
                     continue;
                 }
-                SendMessageToConsole($"\r\nconnected to client {device.DeviceHostName} over port {device.Port}\n", LogType.Success);
-                pnlMain.Enabled = false;
+
+                SendMessageToConsole($"\r\nconnected to client {device.DeviceHostName} successfully over port {device.Port}\n", LogType.Success);
+
                 foreach (Command command in selected_commands)
                 {
                     try
@@ -377,9 +394,15 @@ namespace PiController
                     }
 
                 }
-                pnlMain.Enabled = true;
                 client.Disconnect();
             }
+
+            a = () =>
+            {
+                pnlMain.Enabled = true;
+                Cursor.Current = Cursors.Default;
+            };
+            INVOKER.InvokeControl(pnlMain, a);
         }
 
         #region DevicesButtons

@@ -83,7 +83,7 @@ namespace PiController
                 };
                 device.EncryptionKey = Utils.GenerateKey();
                 device.EncryptionKey = Utils.GenerateKey();
-                device.Password = Convert.ToString(Utils.EncryptPassword(tbDevicePassword.Text, device.EncryptionKey));
+                device.Password = Convert.ToString(Utils.EncryptPassword(tbDevicePassword.Text, device.EncryptionKey, device.Salt));
 
                 return device;
             }
