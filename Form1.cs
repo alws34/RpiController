@@ -169,6 +169,14 @@ namespace PiController
         }
         #endregion ICommunicator
 
+        private Task SendMessageToConsoleAsync(string message, LogType logType)
+        {
+            return Task.Run(() =>
+            {
+                SendMessageToConsole(message, logType);
+            });
+        }
+
         #region IController
         public void EditDevice(Device device)
         {
@@ -315,16 +323,29 @@ namespace PiController
             }
         }
 
-        private void btnRun_Click(object sender, EventArgs e)
+        private async void btnRun_Click(object sender, EventArgs e)
         {
 
-            Thread runCommands = new Thread(RunCommands);
-            runCommands.Start();
+            await RunCommandsAsync();
         }
 
-        private void RunCommands()
+        // Helper method to execute the SSH command asynchronously and return a Task
+        private Task ExecuteCommandAsync(SshClient client, SshCommand cmd)
         {
+            return Task.Run(() =>
+            {
+                if (!client.IsConnected)
+                {
+                    SendMessageToConsole("SSH client is not connected.", LogType.Error);
+                    return;
+                }
 
+                cmd.Execute();
+            });
+        }
+
+        private async Task RunCommandsAsync()
+        {
             Action a = () =>
             {
                 pnlMain.Enabled = false;
@@ -338,20 +359,22 @@ namespace PiController
 
                 if (password == null)
                 {
-                    SendMessageToConsole($"couldn't Decrypt {device.DeviceHostName}'s Password and cannot continue with this device!", LogType.Error);
+                    SendMessageToConsole($"couldn't Decrypt {device.DeviceHostName}'s Password and cannot continue with this device!\n", LogType.Error);
                     continue;
                 }
 
                 var client = new SshClient(device.DeviceHostName, int.Parse(device.Port), device.UserName, password);
                 client.Connect();
+                
+                Thread.Sleep(1000);//wait a little
 
                 if (!client.IsConnected)
                 {
-                    SendMessageToConsole($"couldn't connect to client {device.DeviceHostName} over port {device.Port}", LogType.Error);
+                    SendMessageToConsole($"couldn't connect to client {device.DeviceHostName} over port {device.Port}\n", LogType.Error);
                     continue;
                 }
 
-                SendMessageToConsole($"connected to client {device.DeviceHostName} successfully over port {device.Port}", LogType.Success);
+                SendMessageToConsole($"\r\nconnected to client {device.DeviceHostName} successfully over port {device.Port}\n", LogType.Success);
 
                 foreach (Command command in selected_commands)
                 {
@@ -359,52 +382,51 @@ namespace PiController
                     {
                         SshCommand cmd = client.CreateCommand(command.ShellCommand);
 
-                        // Start asynchronous execution of the command
-                        IAsyncResult result = cmd.BeginExecute();
+                        // Execute the command asynchronously
+                        Task executionTask = ExecuteCommandAsync(client, cmd);
 
                         // Create async readers for output and error streams
                         StreamReader outputReader = new StreamReader(cmd.OutputStream);
                         StreamReader errorReader = new StreamReader(cmd.ExtendedOutputStream);
 
-                        // Create a Task to read the output and error streams asynchronously
-                        Task outputTask = Task.Run(() =>
+                        // Create tasks to read the output and error streams asynchronously
+                        Task outputTask = Task.Run(async () =>
                         {
-                            while (!result.IsCompleted || !outputReader.EndOfStream)
+                            while (!executionTask.IsCompleted || !outputReader.EndOfStream)
                             {
                                 if (!outputReader.EndOfStream)
                                 {
                                     string output = outputReader.ReadLine();
                                     if (!string.IsNullOrEmpty(output))
-                                        SendMessageToConsole(output, LogType.Normal);
+                                        await SendMessageToConsoleAsync(output, LogType.Normal);
                                 }
                             }
                         });
 
-                        Task errorTask = Task.Run(() =>
+                        Task errorTask = Task.Run(async () =>
                         {
-                            while (!result.IsCompleted || !errorReader.EndOfStream)
+                            while (!executionTask.IsCompleted || !errorReader.EndOfStream)
                             {
                                 if (!errorReader.EndOfStream)
                                 {
                                     string error = errorReader.ReadLine();
                                     if (!string.IsNullOrEmpty(error))
-                                        SendMessageToConsole(error, LogType.Error);
+                                        await SendMessageToConsoleAsync(error, LogType.Error);
                                 }
                             }
                         });
 
                         // Wait for command execution to complete and the output/error tasks to finish
-                        cmd.EndExecute(result);
-                        Task.WaitAll(outputTask, errorTask);
+                        await executionTask;
+                        await Task.WhenAll(outputTask, errorTask);
 
                         SendMessageToConsole($"Executed command \"{command.CommandName}\" Successfully on {device.DeviceHostName}", LogType.Success);
                     }
                     catch (Exception ex)
                     {
-                        SendMessageToConsole($"Error while running Command \"{command.CommandName}\" on {device.DeviceHostName}\t{ex}", LogType.Error);
+                        SendMessageToConsole($"Error while running Command \"{command.CommandName}\" on {device.DeviceHostName}\n\t{ex}", LogType.Error);
                         continue;
                     }
-
                 }
                 client.Disconnect();
             }
