@@ -338,7 +338,7 @@ namespace PiController
 
                 if (password == null)
                 {
-                    SendMessageToConsole($"couldn't Decrypt {device.DeviceHostName}'s Password and cannot continue with this device!\n", LogType.Error);
+                    SendMessageToConsole($"couldn't Decrypt {device.DeviceHostName}'s Password and cannot continue with this device!", LogType.Error);
                     continue;
                 }
 
@@ -347,11 +347,11 @@ namespace PiController
 
                 if (!client.IsConnected)
                 {
-                    SendMessageToConsole($"couldn't connect to client {device.DeviceHostName} over port {device.Port}\n", LogType.Error);
+                    SendMessageToConsole($"couldn't connect to client {device.DeviceHostName} over port {device.Port}", LogType.Error);
                     continue;
                 }
 
-                SendMessageToConsole($"\r\nconnected to client {device.DeviceHostName} successfully over port {device.Port}\n", LogType.Success);
+                SendMessageToConsole($"connected to client {device.DeviceHostName} successfully over port {device.Port}", LogType.Success);
 
                 foreach (Command command in selected_commands)
                 {
@@ -366,30 +366,42 @@ namespace PiController
                         StreamReader outputReader = new StreamReader(cmd.OutputStream);
                         StreamReader errorReader = new StreamReader(cmd.ExtendedOutputStream);
 
-                        // Read output and error streams asynchronously
-                        while (!result.IsCompleted || !outputReader.EndOfStream || !errorReader.EndOfStream)
+                        // Create a Task to read the output and error streams asynchronously
+                        Task outputTask = Task.Run(() =>
                         {
-                            if (!outputReader.EndOfStream)
+                            while (!result.IsCompleted || !outputReader.EndOfStream)
                             {
-                                string output = outputReader.ReadLine();
-                                if (!string.IsNullOrEmpty(output))
-                                    SendMessageToConsole(output, LogType.Normal);
+                                if (!outputReader.EndOfStream)
+                                {
+                                    string output = outputReader.ReadLine();
+                                    if (!string.IsNullOrEmpty(output))
+                                        SendMessageToConsole(output, LogType.Normal);
+                                }
                             }
-                            if (!errorReader.EndOfStream)
-                            {
-                                string error = errorReader.ReadLine();
-                                if (!string.IsNullOrEmpty(error))
-                                    SendMessageToConsole(error, LogType.Error);
-                            }
-                        }
-                        // Wait for command execution to complete
-                        cmd.EndExecute(result);
+                        });
 
-                        SendMessageToConsole($"\r\n\tExecuted command \"{command.CommandName}\" Successfully on {device.DeviceHostName}", LogType.Success);
+                        Task errorTask = Task.Run(() =>
+                        {
+                            while (!result.IsCompleted || !errorReader.EndOfStream)
+                            {
+                                if (!errorReader.EndOfStream)
+                                {
+                                    string error = errorReader.ReadLine();
+                                    if (!string.IsNullOrEmpty(error))
+                                        SendMessageToConsole(error, LogType.Error);
+                                }
+                            }
+                        });
+
+                        // Wait for command execution to complete and the output/error tasks to finish
+                        cmd.EndExecute(result);
+                        Task.WaitAll(outputTask, errorTask);
+
+                        SendMessageToConsole($"Executed command \"{command.CommandName}\" Successfully on {device.DeviceHostName}", LogType.Success);
                     }
                     catch (Exception ex)
                     {
-                        SendMessageToConsole($"Error while running Command \"{command.CommandName}\" on {device.DeviceHostName}\n\t{ex}", LogType.Error);
+                        SendMessageToConsole($"Error while running Command \"{command.CommandName}\" on {device.DeviceHostName}\t{ex}", LogType.Error);
                         continue;
                     }
 
