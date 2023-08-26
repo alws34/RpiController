@@ -58,6 +58,7 @@ namespace PiController
             tbDevicePort.Text = device.Port;
             tbDeviceLocation.Text = device.DeviceLocation;
             tbDevicePassword.Text = Utils.DecryptPassword(device.Password, device.EncryptionKey, device.Salt);
+            tbDeviceDescription.Text = device.Description;
         }
 
         public void SetName(string text) { Text = text; }
