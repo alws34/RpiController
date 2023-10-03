@@ -67,12 +67,32 @@ namespace PiController
         }
         private void LoadDevices()
         {
-            foreach (Device device in sv.Devices)
-                flpDevices.Controls.Add(GetDeviceCB(device));
+            flpDevices.Controls.Clear();
+            Dictionary<string, int> textCounts = new Dictionary<string, int>();
+
+            foreach (Device device in sv.Devices.Values)
+            {
+                string deviceText = device.DeviceHostName;
+
+                if (textCounts.ContainsKey(deviceText))
+                {
+                    int count = textCounts[deviceText] + 1;
+                    textCounts[deviceText] = count;
+                    deviceText = $"{deviceText}_({count})";
+                }
+
+                CheckBox checkBox = GetDeviceCB(device);
+                checkBox.Text = deviceText;
+                flpDevices.Controls.Add(checkBox);
+            }
         }
+
+
+
         private void LoadCommands()
         {
-            foreach (Command command in sv.Commands)
+            flpcommands.Controls.Clear();
+            foreach (Command command in sv.Commands.Values)
                 flpcommands.Controls.Add(GetCommandCB(command));
         }
         private void LoadFromDB()
@@ -82,6 +102,7 @@ namespace PiController
                 string path = serializer.GetDBPath();
                 if (!Directory.Exists(Path.GetDirectoryName(path)))
                     Directory.CreateDirectory(Path.GetDirectoryName(path));
+
                 if (!File.Exists(path))
                     File.Create(path).Close();
 
@@ -91,17 +112,20 @@ namespace PiController
                 {
                     SendMessageToConsole($"Could not read from DB file", LogType.Information);
                     sv = new SaveObject();
+                    sv.Commands = new ConcurrentDictionary<string, Command>();
+                    sv.Devices = new ConcurrentDictionary<string, Device>();
                     return;
                 }
+
                 if (sv.Devices == null)
                 {
                     SendMessageToConsole($"No devices were read from DB", LogType.Information);
-                    sv.Devices = new ConcurrentBag<Device>();
+                    sv.Devices = new ConcurrentDictionary<string, Device>();
                     return;
                 }
                 if (sv.Commands == null)
                 {
-                    sv.Commands = new ConcurrentBag<Command>();
+                    sv.Commands = new ConcurrentDictionary<string, Command>();
                     SendMessageToConsole($"No commands were read from DB", LogType.Information);
                     return;
                 }
@@ -123,13 +147,11 @@ namespace PiController
         private void ReloadDevices()
         {
             LoadFromDB();
-            flpDevices.Controls.Clear();
             LoadDevices();
         }
         private void ReloadCommands()
         {
             LoadFromDB();
-            flpcommands.Controls.Clear();
             LoadCommands();
         }
 
@@ -180,38 +202,42 @@ namespace PiController
         #region IController
         public void EditDevice(Device device)
         {
-            Device oldDevice = sv.Devices.FirstOrDefault(dev => dev.DeviceId == device.DeviceId);
-            if (oldDevice != null)
+            if (device != null)
             {
-                sv.Devices.TryTake(out oldDevice);
-                sv.Devices.Add(device);
+                sv.Devices.AddOrUpdate(device.DeviceId, device, (key, oldValue) => device);
+
+                SaveDB();
+                ReloadDevices();
             }
-            SaveDB();
-            ReloadDevices();
         }
 
         public void AddDevice(Device device)
         {
-            sv.Devices.Add(device);
-            SaveDB();
-            flpDevices.Controls.Add(GetDeviceCB(device));
+            if (device != null)
+            {
+                sv.Devices.AddOrUpdate(device.DeviceId, device, (key, oldValue) => device);
+
+                SaveDB();
+                flpDevices.Controls.Add(GetDeviceCB(device));
+            }
         }
 
         public void DeleteDevice(Device device)
         {
-            foreach (TextBox tb in flpDevices.Controls)
+            TextBox textBoxToDelete = flpDevices.Controls
+                .OfType<TextBox>()
+                .FirstOrDefault(tb => ((Device)tb.Tag).Equals(device));
+
+            if (textBoxToDelete != null)
             {
-                if (((Device)tb.Tag).Equals(device))
-                {
-                    tb.Dispose();
-                    return;
-                }
+                textBoxToDelete.Dispose();
             }
         }
 
+
         public void AddCommand(Command command)
         {
-            sv.Commands.Add(command);
+            sv.Commands.AddOrUpdate(command.CommandID, command, (key, oldValue) => command);
             SaveDB();
             flpcommands.Controls.Add(GetCommandCB(command));
             ReloadCommands();
@@ -219,40 +245,39 @@ namespace PiController
 
         public void EditCommand(Command command)
         {
-            Command oldCommand = sv.Commands.FirstOrDefault(com => com.CommandID == command.CommandID);
-            if (oldCommand != null)
+            if (command != null)
             {
-                sv.Commands.TryTake(out oldCommand);
-                sv.Commands.Add(command);
+                sv.Commands.AddOrUpdate(command.CommandID, command, (key, oldValue) => command);
+                SaveDB();
+                ReloadCommands();
             }
-            SaveDB();
-            ReloadCommands();
         }
 
         public void DeleteCommand(Command command)
         {
-            foreach (TextBox tb in flpcommands.Controls)
+            TextBox textBoxToDelete = flpcommands.Controls
+                .OfType<TextBox>()
+                .FirstOrDefault(tb => ((Command)tb.Tag).Equals(command));
+
+            if (textBoxToDelete != null)
             {
-                if (((Command)tb.Tag).Equals(command))
-                {
-                    tb.Dispose();
-                    return;
-                }
+                textBoxToDelete.Dispose();
             }
         }
+
 
         #endregion IController
 
         CheckBox GetCB(object obj)
         {
-            CheckBox cb = new CheckBox()
+            CheckBox cb = new CheckBox
             {
                 Tag = obj,
+                ForeColor = Color.Black
             };
             cb.CheckedChanged += Cb_CheckedChanged;
             cb.MouseEnter += Cb_MouseEnter;
 
-            cb.ForeColor = Color.Black;
             return cb;
         }
 
@@ -277,49 +302,49 @@ namespace PiController
             ToolTip t = new ToolTip();
             CheckBox cb = sender as CheckBox;
 
-            switch (cb.Name)
+            if (cb == null || cb.Tag == null)
             {
-                case "DeviceCB":
-                    t.SetToolTip(cb, ((Device)(cb.Tag)).Description);
-                    break;
-                case "CommandCB":
-                    t.SetToolTip(cb, ((Command)(cb.Tag)).CommandDescription);
-                    break;
+                return;
+            }
+
+            if (cb.Name == "DeviceCB" && cb.Tag is Device device)
+            {
+                t.SetToolTip(cb, device.Description);
+            }
+            else if (cb.Name == "CommandCB" && cb.Tag is Command command)
+            {
+                t.SetToolTip(cb, command.CommandDescription);
             }
         }
+
 
         private void Cb_CheckedChanged(object sender, EventArgs e)
         {
             CheckBox cb = (CheckBox)sender;
-            if (cb == null)
+            if (cb == null || cb.Tag == null)
                 return;
 
-            switch (cb.Name)
+            if (cb.Name == "DeviceCB" && cb.Tag is Device device)
             {
-                case "DeviceCB":
-                    if (cb.Checked)
-                    {
-                        selected_devices.Add((Device)cb.Tag);
-                        CurrentDevice = (Device)cb.Tag;
-                    }
-                    else
-                    {
-                        selected_devices.Remove((Device)cb.Tag);
-                        CurrentDevice = null;
-                    }
-                    break;
-                case "CommandCB":
-                    if (cb.Checked)
-                    {
-                        selected_commands.Add((Command)cb.Tag);
-                        currentCommand = (Command)cb.Tag;
-                    }
-                    else
-                    {
-                        selected_commands.Remove((Command)cb.Tag);
-                        currentCommand = null;
-                    }
-                    break;
+                HandleCheckboxChange(device, ref selected_devices, ref CurrentDevice, cb.Checked);
+            }
+            else if (cb.Name == "CommandCB" && cb.Tag is Command command)
+            {
+                HandleCheckboxChange(command, ref selected_commands, ref currentCommand, cb.Checked);
+            }
+        }
+
+        private void HandleCheckboxChange<T>(T item, ref List<T> selectedItems, ref T currentItem, bool isChecked)
+        {
+            if (isChecked)
+            {
+                selectedItems.Add(item);
+                currentItem = item;
+            }
+            else
+            {
+                selectedItems.Remove(item);
+                currentItem = default(T);
             }
         }
 
@@ -345,10 +370,11 @@ namespace PiController
 
         private SshClient ConnectToDevice(Device device, string password)
         {
-            var sshClient = new SshClient(device.DeviceHostName, int.Parse(device.Port), device.UserName, password);
+            SshClient sshClient = null;
 
             try
             {
+                sshClient = new SshClient(device.DeviceHostName, int.Parse(device.Port), device.UserName, password);
                 sshClient.Connect();
             }
             catch (Exception e)
@@ -369,10 +395,11 @@ namespace PiController
 
         private SshClient ConnectToDeviceWithIP(Device device, string password)
         {
-            var sshClient = new SshClient(device.DeviceIP, int.Parse(device.Port), device.UserName, password);
+            SshClient sshClient = null;
 
             try
             {
+                sshClient = new SshClient(device.DeviceIP, int.Parse(device.Port), device.UserName, password);
                 sshClient.Connect();
             }
             catch (Exception ex)
@@ -385,12 +412,7 @@ namespace PiController
 
         private async Task RunCommandsAsync()
         {
-            Action a = () =>
-            {
-                pnlMain.Enabled = false;
-                Cursor.Current = Cursors.WaitCursor;
-            };
-            INVOKER.InvokeControl(pnlMain, a);
+            INVOKER.InvokeControl(pnlMain, () => SetUiToBusyState());
 
             foreach (Device device in selected_devices)
             {
@@ -398,93 +420,79 @@ namespace PiController
 
                 if (password == null)
                 {
-                    SendMessageToConsole($"couldn't Decrypt {device.DeviceHostName}'s Password and cannot continue with this device!\n", LogType.Error);
+                    SendMessageToConsole($"Couldn't Decrypt {device.DeviceHostName}'s Password. Cannot continue with this device!", LogType.Error);
                     continue;
                 }
 
                 var client = ConnectToDevice(device, password);
 
-                Thread.Sleep(500);//wait a little
-
                 if (!client.IsConnected)
                 {
-                    SendMessageToConsole($"couldn't connect to client {device.DeviceHostName} over port {device.Port}", LogType.Error);
+                    SendMessageToConsole($"Couldn't connect to client {device.DeviceHostName} over port {device.Port}", LogType.Error);
                     continue;
                 }
 
-                SendMessageToConsole($"connected to client {device.DeviceHostName} successfully over port {device.Port}", LogType.Success);
+                SendMessageToConsole($"Connected to client {device.DeviceHostName} successfully over port {device.Port}", LogType.Success);
 
                 foreach (Command command in selected_commands)
                 {
                     try
                     {
                         SshCommand cmd = client.CreateCommand(command.ShellCommand);
-
-                        // Execute the command asynchronously
                         Task executionTask = ExecuteCommandAsync(client, cmd);
 
-                        while ( cmd.OutputStream == null || cmd.ExtendedOutputStream == null) { Thread.Sleep(1); }
-
-                        // Create async readers for output and error streams
-                        StreamReader outputReader = new StreamReader(cmd.OutputStream);
-                        StreamReader errorReader = new StreamReader(cmd.ExtendedOutputStream);
-
-                        // Create tasks to read the output and error streams asynchronously
-                        Task outputTask = Task.Run(async () =>
+                        using (var outputReader = new StreamReader(cmd.OutputStream))
+                        using (var errorReader = new StreamReader(cmd.ExtendedOutputStream))
                         {
-                            while (!executionTask.IsCompleted || !outputReader.EndOfStream)
-                            {
-                                try
-                                {
-                                    if (!outputReader.EndOfStream)
-                                    {
-                                        string output = outputReader.ReadLine();
-                                        if (!string.IsNullOrEmpty(output))
-                                            await SendMessageToConsoleAsync(output, LogType.Normal);
-                                    }
-                                }
-                                catch (Exception ex) { continue; }
-                            }
-                        });
+                            Task outputTask = StreamOutputAsync(outputReader);
+                            Task errorTask = StreamOutputAsync(errorReader);
 
-                        Task errorTask = Task.Run(async () =>
-                        {
-                            while (!executionTask.IsCompleted || !errorReader.EndOfStream)
-                            {
-                                try
-                                {
-                                    if (!errorReader.EndOfStream)
-                                    {
-                                        string error = errorReader.ReadLine();
-                                        if (!string.IsNullOrEmpty(error))
-                                            await SendMessageToConsoleAsync(error, LogType.Error);
-                                    }
-                                }
-                                catch (Exception ex) { continue; }
-                            }
-                        });
-                        // Wait for command execution to complete and the output/error tasks to finish
-                        await executionTask;
-                        await Task.WhenAll(outputTask, errorTask);
+                            await executionTask;
+                            await Task.WhenAll(outputTask, errorTask);
+                        }
 
                         SendMessageToConsole($"Executed command \"{command.CommandName}\" Successfully on {device.DeviceHostName}", LogType.Success);
                     }
                     catch (Exception ex)
                     {
                         SendMessageToConsole($"Error while running Command \"{command.CommandName}\" on {device.DeviceHostName}\n\t{ex}", LogType.Error);
-                        continue;
                     }
                 }
                 client.Disconnect();
             }
 
-            a = () =>
-            {
-                pnlMain.Enabled = true;
-                Cursor.Current = Cursors.Default;
-            };
-            INVOKER.InvokeControl(pnlMain, a);
+            INVOKER.InvokeControl(pnlMain, () => SetUiToNormalState());
         }
+
+        private async Task StreamOutputAsync(StreamReader reader)
+        {
+            while (!reader.EndOfStream)
+            {
+                try
+                {
+                    string output = await reader.ReadLineAsync();
+                    if (!string.IsNullOrEmpty(output))
+                        await SendMessageToConsoleAsync(output, LogType.Normal);
+                }
+                catch (Exception ex)
+                {
+                    await SendMessageToConsoleAsync($"{ex}", LogType.Error);
+                }
+            }
+        }
+
+        private void SetUiToBusyState()
+        {
+            pnlMain.Enabled = false;
+            Cursor.Current = Cursors.WaitCursor;
+        }
+
+        private void SetUiToNormalState()
+        {
+            pnlMain.Enabled = true;
+            Cursor.Current = Cursors.Default;
+        }
+
 
         #region DevicesButtons
         private void btnAddDevice_Click(object sender, EventArgs e)
@@ -501,16 +509,25 @@ namespace PiController
                 return;
             }
 
-            foreach (CheckBox tb in flpDevices.Controls)
+            // Find and remove the CheckBox from flpDevices
+            CheckBox checkBoxToRemove = flpDevices.Controls
+                .OfType<CheckBox>()
+                .FirstOrDefault(tb => ((Device)tb.Tag).Equals(CurrentDevice));
+
+            if (checkBoxToRemove != null)
             {
-                if (((Device)tb.Tag).Equals(CurrentDevice))
-                {
-                    tb.Dispose();
-                    break;
-                }
+                flpDevices.Controls.Remove(checkBoxToRemove);
+                checkBoxToRemove.Dispose();
             }
-            sv.Devices.TryTake(out CurrentDevice);
-            CurrentDevice = null;
+
+            // Remove the device from sv.Devices
+            if (sv.Devices.TryRemove(CurrentDevice.DeviceId, out _))
+                CurrentDevice = null;
+            else
+            {
+                SendMessageToConsole($"Error while trying to remove Device {CurrentDevice.DeviceHostName}", LogType.Error);
+                return;
+            }
             SaveDB();
         }
 
@@ -529,7 +546,7 @@ namespace PiController
 
         private void btnAddNewCommand_Click(object sender, EventArgs e)
         {
-            frmAddCommand AddCommandfrm = new frmAddCommand(this, this);
+            frmCommandController AddCommandfrm = new frmCommandController(this, this);
             AddCommandfrm.Show();
         }
 
@@ -537,20 +554,29 @@ namespace PiController
         {
             if (currentCommand == null)
             {
-                SendMessageToConsole("No Device Selected", LogType.Warning);
+                SendMessageToConsole("No Command Selected", LogType.Warning);
                 return;
             }
 
-            foreach (CheckBox tb in flpcommands.Controls)
+            // Find and remove the CheckBox from flpcommands
+            CheckBox checkBoxToRemove = flpcommands.Controls
+                .OfType<CheckBox>()
+                .FirstOrDefault(cb => ((Command)cb.Tag).Equals(currentCommand));
+
+            if (checkBoxToRemove != null)
             {
-                if (((Command)tb.Tag).Equals(currentCommand))
-                {
-                    tb.Dispose();
-                    break;
-                }
+                flpcommands.Controls.Remove(checkBoxToRemove);
+                checkBoxToRemove.Dispose();
             }
-            sv.Commands.TryTake(out currentCommand);
-            currentCommand = null;
+
+            // Remove the command from sv.Commands
+            if (sv.Commands.TryRemove(currentCommand.CommandID, out _))
+                currentCommand = null;
+            else
+            {
+                SendMessageToConsole($"Error while trying to remove Command {currentCommand.CommandName}", LogType.Error);
+                return;
+            }
             SaveDB();
         }
 
@@ -562,7 +588,7 @@ namespace PiController
                 return;
             }
 
-            frmAddCommand AddCommandfrm = new frmAddCommand(this, this, currentCommand, true);
+            frmCommandController AddCommandfrm = new frmCommandController(this, this, currentCommand, true);
             AddCommandfrm.Show();
         }
     }

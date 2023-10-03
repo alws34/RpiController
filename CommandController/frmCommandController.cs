@@ -11,13 +11,14 @@ using System.Windows.Forms;
 
 namespace PiController
 {
-    public partial class frmAddCommand : Form
+    public partial class frmCommandController : Form
     {
         IController controller;
         Icommunicator communicator;
         bool IsEdit = false;
         Command Command = null;
-        public frmAddCommand(IController con, Icommunicator com, Command command = null, bool isEdit = false)
+
+        public frmCommandController(IController con, Icommunicator com, Command command = null, bool isEdit = false)
         {
             InitializeComponent();
             controller = con;
@@ -30,7 +31,7 @@ namespace PiController
                 btnAddCommand.Text = "Save Changes";
                 Text = "Edit Command";
             }
-           
+
             if (command != null)
                 SetCommandToScreen(command);
             CenterToScreen();
@@ -38,29 +39,30 @@ namespace PiController
 
         private void SetCommandToScreen(Command command)
         {
-            tbCommandName.Text = command.CommandName;
-            tbCommandDescription.Text = command.CommandDescription;
-            tbCommand.Text = command.ShellCommand;
+            deviceControllerUC.SetCommandName(command.CommandName);
+            deviceControllerUC.SetCommandDescription(command.CommandDescription);
+            deviceControllerUC.SetCommand(command.ShellCommand);
         }
 
         private Command GetCommand(Command comm = null)
         {
+
             if (!IsEdit)
             {
                 comm = new Command()
                 {
-                    CommandName = tbCommandName.Text,
-                    CommandDescription = tbCommandDescription.Text,
-                    ShellCommand = tbCommand.Text
+                    CommandName = deviceControllerUC.GetCommandName(),
+                    CommandDescription = deviceControllerUC.GetCommandDescription(),
+                    ShellCommand = deviceControllerUC.GetCommand()
                 };
 
                 comm.CommandID = Utils.GetUniqueID();
             }
             else
             {
-                comm.CommandName = tbCommandName.Text;
-                comm.CommandDescription = tbCommandDescription.Text;
-                comm.ShellCommand = tbCommand.Text;
+                comm.CommandName = deviceControllerUC.GetCommandName();
+                comm.CommandDescription = deviceControllerUC.GetCommandDescription();
+                comm.ShellCommand = deviceControllerUC.GetCommand();
             }
             return comm;
         }

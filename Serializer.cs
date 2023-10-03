@@ -14,12 +14,12 @@ namespace RPICommander
 {
     public class SaveObject
     {
-        public ConcurrentBag<Device> Devices { get; set; }
-        public ConcurrentBag<Command> Commands { get; set; }
+        public ConcurrentDictionary<string,Device> Devices { get; set; }
+        public ConcurrentDictionary<string,Command> Commands { get; set; }
         public SaveObject()
         {
-            Devices = new ConcurrentBag<Device>();
-            Commands = new ConcurrentBag<Command>();
+            Devices = new ConcurrentDictionary<string, Device>();
+            Commands = new ConcurrentDictionary<string, Command>();
         }
     }
     public class Serializer

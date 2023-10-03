@@ -54,24 +54,37 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="Command.cs" />
+    <Compile Include="CommandController\Command.cs" />
     <Compile Include="Device.cs" />
+    <Compile Include="CommandController\CommandControllerUC.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Include="CommandController\CommandControllerUC.Designer.cs">
+      <DependentUpon>CommandControllerUC.cs</DependentUpon>
+    </Compile>
+    <Compile Include="DeviceController\DeviceControllerIUC.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Include="DeviceController\DeviceControllerIUC.Designer.cs">
+      <DependentUpon>DeviceControllerIUC.cs</DependentUpon>
+    </Compile>
+    <Compile Include="DeviceController\IDeviceController.cs" />
     <Compile Include="Form1.cs">
       <SubType>Form</SubType>
     </Compile>
     <Compile Include="Form1.Designer.cs">
       <DependentUpon>Form1.cs</DependentUpon>
     </Compile>
-    <Compile Include="frmAddCommand.cs">
+    <Compile Include="CommandController\frmCommandController.cs">
       <SubType>Form</SubType>
     </Compile>
-    <Compile Include="frmAddCommand.Designer.cs">
-      <DependentUpon>frmAddCommand.cs</DependentUpon>
+    <Compile Include="CommandController\frmCommandController.Designer.cs">
+      <DependentUpon>frmCommandController.cs</DependentUpon>
     </Compile>
-    <Compile Include="frmAddDevice.cs">
+    <Compile Include="DeviceController\frmAddDevice.cs">
       <SubType>Form</SubType>
     </Compile>
-    <Compile Include="frmAddDevice.Designer.cs">
+    <Compile Include="DeviceController\frmAddDevice.Designer.cs">
       <DependentUpon>frmAddDevice.cs</DependentUpon>
     </Compile>
     <Compile Include="INVOKER.cs" />
@@ -79,13 +92,19 @@
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Serializer.cs" />
     <Compile Include="Utils.cs" />
+    <EmbeddedResource Include="CommandController\CommandControllerUC.resx">
+      <DependentUpon>CommandControllerUC.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="DeviceController\DeviceControllerIUC.resx">
+      <DependentUpon>DeviceControllerIUC.cs</DependentUpon>
+    </EmbeddedResource>
     <EmbeddedResource Include="Form1.resx">
       <DependentUpon>Form1.cs</DependentUpon>
     </EmbeddedResource>
-    <EmbeddedResource Include="frmAddCommand.resx">
-      <DependentUpon>frmAddCommand.cs</DependentUpon>
+    <EmbeddedResource Include="CommandController\frmCommandController.resx">
+      <DependentUpon>frmCommandController.cs</DependentUpon>
     </EmbeddedResource>
-    <EmbeddedResource Include="frmAddDevice.resx">
+    <EmbeddedResource Include="DeviceController\frmAddDevice.resx">
       <DependentUpon>frmAddDevice.cs</DependentUpon>
     </EmbeddedResource>
     <EmbeddedResource Include="Properties\Resources.resx">
